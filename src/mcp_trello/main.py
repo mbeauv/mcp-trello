@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 from dotenv import load_dotenv
-from trello_client import TrelloClient
+from .client import TrelloClient
 from typing import List
 from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent
@@ -778,7 +778,8 @@ async def update_card(card_id: str, name: str = None, description: str = None, d
         return [TextContent(type="text", text=f"Error updating card: {str(e)}")]
 
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for the MCP Trello server."""
     logger.info("Starting MCP Trello server...")
     try:
         mcp.run()
@@ -786,3 +787,7 @@ if __name__ == "__main__":
         logger.info("Server stopped by user")
     except Exception as e:
         logger.error(f"Server error: {e}", exc_info=True)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,7 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "mcp-trello"
 version = "0.1.0"
 description = "MCP extension for Trello"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Martin Beauvais"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+requires-python = ">=3.11"
 dependencies = [
     "mcp>=1.0.0",
     "py-trello>=0.19.0",
@@ -17,3 +36,14 @@ dev = [
     "black>=23.0.0",
     "flake8>=6.0.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/mbeauv/mcp-trello"
+Repository = "https://github.com/mbeauv/mcp-trello"
+Issues = "https://github.com/mbeauv/mcp-trello/issues"
+
+[project.scripts]
+mcp-trello = "mcp_trello.main:main"
+
+[tool.hatchling.packages.find]
+where = ["src"]
