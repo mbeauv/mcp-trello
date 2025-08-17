@@ -744,6 +744,40 @@ wheels = [
 ]
 
 [[package]]
+name = "mbeauv-mcp-trello"
+version = "0.1.1"
+source = { editable = "." }
+dependencies = [
+    { name = "httpx" },
+    { name = "mcp" },
+    { name = "mcp-cli" },
+    { name = "py-trello" },
+    { name = "python-dotenv" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "black" },
+    { name = "flake8" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
+    { name = "flake8", marker = "extra == 'dev'", specifier = ">=6.0.0" },
+    { name = "httpx", specifier = ">=0.24.0" },
+    { name = "mcp", specifier = ">=1.0.0" },
+    { name = "mcp-cli", specifier = ">=0.5.2" },
+    { name = "py-trello", specifier = ">=0.19.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
+]
+provides-extras = ["dev"]
+
+[[package]]
 name = "mccabe"
 version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -793,40 +827,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/69/f4/eb0e7386aa0716b54
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3b/f8/35dea8a3bb1eadd71aaffa622cfbd76c59511de18e4d6668fb1fca0d12b4/mcp_cli-0.6.6-py3-none-any.whl", hash = "sha256:3d4448992c0fd7cfb05ef7eece08263b732cc421c9dc9861128206eb2596dcc3", size = 181554, upload-time = "2025-08-13T10:44:26.053Z" },
 ]
-
-[[package]]
-name = "mcp-trello"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "httpx" },
-    { name = "mcp" },
-    { name = "mcp-cli" },
-    { name = "py-trello" },
-    { name = "python-dotenv" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "black" },
-    { name = "flake8" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
-    { name = "flake8", marker = "extra == 'dev'", specifier = ">=6.0.0" },
-    { name = "httpx", specifier = ">=0.24.0" },
-    { name = "mcp", specifier = ">=1.0.0" },
-    { name = "mcp-cli", specifier = ">=0.5.2" },
-    { name = "py-trello", specifier = ">=0.19.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
-    { name = "python-dotenv", specifier = ">=1.0.0" },
-]
-provides-extras = ["dev"]
 
 [[package]]
 name = "mdurl"

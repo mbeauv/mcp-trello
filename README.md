@@ -35,15 +35,33 @@ A Model Context Protocol (MCP) extension for Claude that provides comprehensive 
 
 ## Prerequisites
 
-- Python 3.8+
-- [uv](https://github.com/astral-sh/uv) package manager
+- Python 3.11+
 - Trello API credentials (API Key and Token)
+- Optional: [uv](https://github.com/astral-sh/uv) package manager (for development or uvx installation)
 
 ## Installation
 
+### Option 1: Desktop Extension (Recommended for Claude Desktop)
+
+Download the latest `.dxt` file from the [releases page](https://github.com/mbeauv/mcp-trello/releases) and install it directly in Claude Desktop:
+
+1. Open Claude Desktop
+2. Go to Settings > Extensions
+3. Click "Install Extension" 
+4. Select the downloaded `.dxt` file
+5. Configure your Trello API credentials in the extension settings
+
+### Option 2: Standard MCP Server (via PyPI)
+
+```bash
+pip install mbeauv-mcp-trello
+```
+
+### Option 3: Install from source
+
 1. **Clone the repository**:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/mbeauv/mcp-trello.git
    cd mcp-trello
    ```
 
@@ -107,17 +125,57 @@ SAFE_MODE=false
 
 Create or update your Claude Desktop configuration file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
+#### Option 1: Using pip installation (Recommended)
+
+```json
+{
+  "mcpServers": {
+    "trello": {
+      "command": "python",
+      "args": ["-m", "mcp_trello.main"],
+      "env": {
+        "TRELLO_API_KEY": "your_api_key",
+        "TRELLO_TOKEN": "your_token",
+        "LOG_LEVEL": "INFO",
+        "SAFE_MODE": "true"
+      }
+    }
+  }
+}
+```
+
+#### Option 2: Using uvx (if you prefer uv)
+
+```json
+{
+  "mcpServers": {
+    "trello": {
+      "command": "uvx",
+      "args": ["--from", "mbeauv-mcp-trello", "mbeauv-mcp-trello"],
+      "env": {
+        "TRELLO_API_KEY": "your_api_key",
+        "TRELLO_TOKEN": "your_token",
+        "LOG_LEVEL": "INFO",
+        "SAFE_MODE": "true"
+      }
+    }
+  }
+}
+```
+
+#### Option 3: From source (development)
+
 ```json
 {
   "mcpServers": {
     "trello": {
       "command": "/path/to/uv",
-      "args": ["run", "python", "main.py"],
+      "args": ["run", "python", "-m", "mcp_trello.main"],
       "env": {
-        "PYTHONPATH": ".",
         "TRELLO_API_KEY": "your_api_key",
         "TRELLO_TOKEN": "your_token",
-        "LOG_LEVEL": "INFO"
+        "LOG_LEVEL": "INFO",
+        "SAFE_MODE": "true"
       }
     }
   }
@@ -239,6 +297,20 @@ Built using FastMCP for simplified tool definition:
 - **Global State**: Maintains current workspace context
 - **Comprehensive Logging**: Detailed logging for debugging and monitoring
 - **Error Recovery**: Graceful error handling with user-friendly messages
+
+## Building Desktop Extension
+
+To build the `.dxt` file for Desktop Extension deployment:
+
+```bash
+# From the project root (recommended)
+uv run python dxt/build_dxt.py
+
+# Or with regular Python (if uv not available)
+python dxt/build_dxt.py
+```
+
+This creates a `mbeauv-mcp-trello-{version}.dxt` file that can be installed directly in Claude Desktop.
 
 ## Development
 
