@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mcp-trello"
+name = "mbeauv-mcp-trello"
 version = "0.1.1"
 description = "MCP extension for Trello"
 readme = "README.md"
@@ -43,7 +43,10 @@ Repository = "https://github.com/mbeauv/mcp-trello"
 Issues = "https://github.com/mbeauv/mcp-trello/issues"
 
 [project.scripts]
-mcp-trello = "mcp_trello.main:main"
+mbeauv-mcp-trello = "mcp_trello.main:main"
 
 [tool.hatchling.packages.find]
 where = ["src"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcp_trello"]
