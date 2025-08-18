@@ -1,41 +1,18 @@
 {
+  "dxt_version": "0.1",
   "name": "mbeauv-mcp-trello",
   "version": "0.1.1",
-  "description": "MCP extension for Trello - manage workspaces, boards, lists, cards, and checklists",
-  "author": "Martin Beauvais",
-  "homepage": "https://github.com/mbeauv/mcp-trello",
-  "entry_point": "server/main.py",
-  "python_version": ">=3.11",
-  "dependencies": [
-    "mcp>=1.0.0",
-    "py-trello>=0.19.0", 
-    "python-dotenv>=1.0.0",
-    "httpx>=0.24.0"
-  ],
-  "environment_variables": [
-    {
-      "name": "TRELLO_API_KEY",
-      "description": "Your Trello API key from https://trello.com/app-key",
-      "required": true
-    },
-    {
-      "name": "TRELLO_TOKEN",
-      "description": "Your Trello API token (generated from API key page)",
-      "required": true
-    },
-    {
-      "name": "SAFE_MODE",
-      "description": "Enable safe mode to disable destructive operations (delete functions)",
-      "required": false,
-      "default": "true"
-    },
-    {
-      "name": "LOG_LEVEL",
-      "description": "Logging level (DEBUG, INFO, WARNING, ERROR)",
-      "required": false,
-      "default": "INFO"
+  "description": "MCP extension for Trello",
+  "author": {
+    "name": "Martin Beauvais",
+    "email": "mbeauv@gmail.com"
+  },
+  "server": {
+    "type": "python",
+    "entry_point": "server/main.py",
+    "mcp_config": {
+      "command": "python",
+      "args": ["${__dirname}/server/main.py"]
     }
-  ],
-  "categories": ["productivity", "project-management"],
-  "keywords": ["trello", "project-management", "kanban", "boards", "cards"]
+  }
 }

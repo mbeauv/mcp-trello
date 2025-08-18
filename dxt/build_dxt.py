@@ -23,7 +23,12 @@ def build_dxt():
         manifest = json.load(f)
     
     version = manifest["version"]
-    output_file = project_root / f"mbeauv-mcp-trello-{version}.dxt"
+    
+    # Ensure dist directory exists
+    dist_dir = project_root / "dist"
+    dist_dir.mkdir(exist_ok=True)
+    
+    output_file = dist_dir / f"mbeauv-mcp-trello-{version}.dxt"
     
     print(f"Building Desktop Extension v{version}...")
     
@@ -34,9 +39,40 @@ def build_dxt():
         server_dir = temp_path / "server"
         server_dir.mkdir()
         
-        # Copy source files to server directory
+        # Copy source files to server directory and fix imports
         for file in src_dir.glob("*.py"):
-            shutil.copy2(file, server_dir)
+            content = file.read_text()
+            
+            if file.name == "main.py":
+                # Fix the relative import and add path setup for main.py
+                content = content.replace(
+                    "from .client import TrelloClient",
+                    "from client import TrelloClient"
+                )
+                # Add lib directory to path at the beginning
+                content = f"""import sys
+import os
+from pathlib import Path
+
+# Add bundled dependencies to Python path
+lib_dir = Path(__file__).parent.parent / "lib"
+if lib_dir.exists():
+    sys.path.insert(0, str(lib_dir))
+
+# Debug logging to help troubleshoot
+print(f"[DEBUG] Starting MCP Trello server from {{__file__}}", file=sys.stderr)
+print(f"[DEBUG] Python path: {{sys.path[:3]}}", file=sys.stderr)
+print(f"[DEBUG] Lib directory exists: {{lib_dir.exists()}}", file=sys.stderr)
+
+{content}"""
+            elif file.name == "__init__.py":
+                # Fix relative imports in __init__.py
+                content = content.replace(
+                    "from .client import TrelloClient",
+                    "from client import TrelloClient"
+                )
+            
+            (server_dir / file.name).write_text(content)
         
         # Copy manifest
         shutil.copy2(manifest_path, temp_path / "manifest.json")
@@ -54,7 +90,7 @@ def build_dxt():
         subprocess.run([
             "uv", "pip", "install", 
             "--target", str(lib_dir),
-            "--no-deps",  # We'll handle deps manually
+            # Remove --no-deps to get all transitive dependencies
             "mcp>=1.0.0",
             "py-trello>=0.19.0", 
             "python-dotenv>=1.0.0",

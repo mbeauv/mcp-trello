@@ -9,7 +9,7 @@ description = "MCP extension for Trello"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
-    {name = "Martin Beauvais"}
+    {name = "Martin Beauvais", email = "mbeauv@gmail.com"}
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",

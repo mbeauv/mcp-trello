@@ -1,7 +1,9 @@
 import asyncio
+import json
 import logging
 import os
 import sys
+from pathlib import Path
 from dotenv import load_dotenv
 from .client import TrelloClient
 from typing import List
@@ -23,27 +25,66 @@ logger = logging.getLogger("mcp_trello")
 
 
 # Get credentials from environment variables
-def get_credentials():
-    """Get Trello credentials from environment variables."""
+def get_config_file_path():
+    """Get the path to the config file in the extension directory."""
+    # Get the directory where this script is running
+    script_dir = Path(__file__).parent
+    return script_dir / "trello_config.json"
+
+def load_config():
+    """Load configuration from file or environment variables."""
+    config_file = get_config_file_path()
+    
+    # Try to load from config file first
+    if config_file.exists():
+        try:
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+                api_key = config.get('api_key')
+                token = config.get('token')
+                if api_key and token:
+                    logger.info("Loaded Trello credentials from config file")
+                    return api_key, token
+        except Exception as e:
+            logger.warning(f"Failed to load config file: {e}")
+    
+    # Fallback to environment variables
     api_key = os.getenv("TRELLO_API_KEY")
     token = os.getenv("TRELLO_TOKEN")
     
+    if api_key and token:
+        logger.info("Loaded Trello credentials from environment variables")
+        return api_key, token
+    
+    return None, None
+
+def get_credentials():
+    """Get Trello credentials from config file or environment variables."""
+    api_key, token = load_config()
+    
     if not api_key or not token:
-        logger.error("Missing Trello credentials. Please set TRELLO_API_KEY and TRELLO_TOKEN environment variables.")
+        logger.error("Missing Trello credentials. Please use the configure_trello tool to set up your credentials.")
         raise ValueError("Missing Trello credentials")
     
     return api_key, token
 
 
-# Initialize the Trello client
-logger.info("Initializing Trello client...")
-try:
-    api_key, token = get_credentials()
-    trello_client = TrelloClient(api_key=api_key, token=token)
-    logger.info("Trello client initialized successfully")
-except ValueError as e:
-    logger.error(f"Failed to initialize Trello client: {e}")
-    raise
+# Initialize the Trello client (lazily - only when needed)
+logger.info("MCP Trello server starting...")
+trello_client = None
+
+def get_trello_client():
+    """Get or initialize the Trello client on demand."""
+    global trello_client
+    if trello_client is None:
+        try:
+            api_key, token = get_credentials()
+            trello_client = TrelloClient(api_key=api_key, token=token)
+            logger.info("Trello client initialized successfully")
+        except ValueError as e:
+            logger.error(f"Trello credentials not configured: {e}")
+            raise ValueError("Please configure TRELLO_API_KEY and TRELLO_TOKEN environment variables in Claude Desktop extension settings.")
+    return trello_client
 
 # Create FastMCP server
 logger.info("Creating FastMCP server...")
@@ -72,12 +113,103 @@ def get_current_workspace_info():
 
 
 @mcp.tool()
+async def configure_trello(api_key: str, token: str) -> List[TextContent]:
+    """Configure Trello API credentials for the MCP server.
+    
+    Args:
+        api_key: Your Trello API key from https://trello.com/app-key
+        token: Your Trello API token (generate from the API key page)
+    """
+    logger.info("Tool called: configure_trello")
+    
+    try:
+        # Validate credentials by testing them
+        test_client = TrelloClient(api_key=api_key, token=token)
+        
+        # Test the credentials with a simple API call
+        try:
+            await test_client.get_workspaces()
+            logger.info("Trello credentials validated successfully")
+        except Exception as e:
+            logger.error(f"Invalid Trello credentials: {e}")
+            return [TextContent(type="text", text=f"❌ **Invalid Credentials**\n\nThe provided API key and token are not valid. Please check them and try again.\n\nError: {str(e)}")]
+        
+        # Save credentials to config file
+        config_file = get_config_file_path()
+        config = {
+            "api_key": api_key,
+            "token": token,
+            "configured_at": str(asyncio.get_event_loop().time())
+        }
+        
+        # Ensure the directory exists
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(config_file, 'w') as f:
+            json.dump(config, f, indent=2)
+        
+        logger.info(f"Trello credentials saved to {config_file}")
+        
+        # Reset the global client so it gets reinitialized with new credentials
+        global trello_client
+        trello_client = None
+        
+        result = "✅ **Trello Configuration Successful!**\n\n"
+        result += "🔐 **Credentials**: Validated and saved securely\n"
+        result += f"📁 **Config File**: {config_file}\n"
+        result += "🎯 **Status**: Ready to use Trello tools!\n\n"
+        result += "**Next Steps:**\n"
+        result += "• Try: 'List my Trello workspaces'\n"
+        result += "• Try: 'Run health check' to verify everything is working\n"
+        
+        return [TextContent(type="text", text=result)]
+        
+    except Exception as e:
+        logger.error(f"Error configuring Trello: {e}")
+        return [TextContent(type="text", text=f"❌ **Configuration Failed**\n\nError: {str(e)}")]
+
+
+@mcp.tool()
+async def health_check() -> List[TextContent]:
+    """Check if the MCP Trello server is running and configured properly."""
+    logger.info("Tool called: health_check")
+    
+    result = "🔧 **MCP Trello Server Status**\n\n"
+    result += "✅ **Server**: Running\n"
+    result += f"✅ **Safe Mode**: {SAFE_MODE}\n"
+    result += f"✅ **Log Level**: {os.getenv('LOG_LEVEL', 'INFO')}\n"
+    
+    # Check credentials from both config file and env vars
+    api_key, token = load_config()
+    config_file = get_config_file_path()
+    
+    if api_key and token:
+        result += "✅ **Credentials**: Configured\n"
+        if config_file.exists():
+            result += f"📁 **Config File**: {config_file}\n"
+        else:
+            result += "🌍 **Source**: Environment variables\n"
+        result += "🎯 **Ready**: You can now use Trello tools!\n"
+    else:
+        result += "❌ **Credentials**: Not configured\n"
+        result += "⚙️ **Setup Required**: Use the 'configure_trello' tool to set up your credentials.\n"
+        result += "\n**How to get credentials:**\n"
+        result += "1. Go to https://trello.com/app-key\n"
+        result += "2. Copy your API Key\n"
+        result += "3. Generate a token by clicking the token link\n"
+        result += "4. Run: configure_trello with your API key and token\n"
+    
+    return [TextContent(type="text", text=result)]
+
+
+@mcp.tool()
 async def list_workspaces() -> List[TextContent]:
     """List all Trello workspaces accessible to the user."""
     logger.info("Tool called: list_workspaces")
     
     try:
-        workspaces_json = await trello_client.get_workspaces()
+        client = get_trello_client()
+        workspaces_json = await client.get_workspaces()
         
         if not workspaces_json:
             return [TextContent(type="text", text="No workspaces found.")]
@@ -119,7 +251,7 @@ async def create_workspace(name: str, display_name: str = None, description: str
         display_name = display_name or name
         
         logger.debug("Calling Trello API to create workspace...")
-        workspace_data = await trello_client.create_workspace(
+        workspace_data = await (client := get_trello_client()).create_workspace(
             name=name,
             display_name=display_name,
             description=description,
@@ -159,7 +291,7 @@ if not SAFE_MODE:
         
         try:
             logger.debug("Calling Trello API to delete workspace...")
-            success = await trello_client.delete_workspace(workspace_id)
+            success = await (client := get_trello_client()).delete_workspace(workspace_id)
             
             if success:
                 logger.info(f"Successfully deleted workspace: {workspace_id}")
@@ -188,7 +320,8 @@ async def set_workspace(workspace_id: str) -> List[TextContent]:
     
     try:
         # Verify the workspace exists by trying to get its details
-        workspaces = await trello_client.get_workspaces()
+        client = get_trello_client()
+        workspaces = await client.get_workspaces()
         workspace = None
         
         for ws in workspaces:
@@ -230,7 +363,7 @@ async def get_current_workspace() -> List[TextContent]:
     
     try:
         # Get updated workspace info
-        workspaces = await trello_client.get_workspaces()
+        workspaces = await (client := get_trello_client()).get_workspaces()
         workspace = None
         
         for ws in workspaces:
@@ -268,7 +401,7 @@ async def list_boards_for_selected() -> List[TextContent]:
         return [TextContent(type="text", text="❌ **No workspace selected!**\n\nUse `set_workspace` to select a workspace first.")]
     
     try:
-        boards = await trello_client.get_workspace_boards(current_workspace_id)
+        boards = await (client := get_trello_client()).get_workspace_boards(current_workspace_id)
         
         if not boards:
             result = f"📋 **No Boards Found**\n\n"
@@ -310,7 +443,7 @@ async def create_board(name: str, description: str = None) -> List[TextContent]:
         return [TextContent(type="text", text="❌ **No workspace selected!**\n\nUse `set_workspace` to select a workspace first.")]
     
     try:
-        board_data = await trello_client.create_board(
+        board_data = await (client := get_trello_client()).create_board(
             name=name,
             workspace_id=current_workspace_id,
             description=description
@@ -344,7 +477,7 @@ if not SAFE_MODE:
         logger.debug(f"Deleting board with ID: {board_id}")
         
         try:
-            success = await trello_client.delete_board(board_id)
+            success = await (client := get_trello_client()).delete_board(board_id)
             
             if success:
                 result = f"✅ **Board Deleted Successfully!**\n\n"
@@ -372,7 +505,7 @@ async def list_board_lists(board_id: str) -> List[TextContent]:
     logger.debug(f"Listing lists for board ID: {board_id}")
     
     try:
-        lists_data = await trello_client.get_board_lists(board_id)
+        lists_data = await (client := get_trello_client()).get_board_lists(board_id)
         
         if not lists_data:
             result = f"📝 **No Lists Found**\n\n"
@@ -410,7 +543,7 @@ if not SAFE_MODE:
         logger.debug(f"Deleting list with ID: {list_id}")
         
         try:
-            success = await trello_client.delete_board_list(list_id)
+            success = await (client := get_trello_client()).delete_board_list(list_id)
             
             if success:
                 result = f"✅ **List Deleted Successfully!**\n\n"
@@ -440,7 +573,7 @@ async def create_board_list(name: str, board_id: str, position: str = "bottom") 
     logger.debug(f"Creating list '{name}' in board ID: {board_id}, position: {position}")
     
     try:
-        list_data = await trello_client.create_board_list(
+        list_data = await (client := get_trello_client()).create_board_list(
             name=name,
             board_id=board_id,
             position=position
@@ -471,7 +604,7 @@ async def list_board_cards(board_id: str) -> List[TextContent]:
     logger.debug(f"Listing cards for board ID: {board_id}")
     
     try:
-        cards_data = await trello_client.get_board_cards(board_id)
+        cards_data = await (client := get_trello_client()).get_board_cards(board_id)
         
         if not cards_data:
             result = f"🃏 **No Cards Found**\n\n"
@@ -534,7 +667,7 @@ async def create_card(name: str, list_id: str, description: str = None, due_date
     logger.debug(f"Creating card '{name}' in list ID: {list_id}")
     
     try:
-        card_data = await trello_client.create_card(
+        card_data = await (client := get_trello_client()).create_card(
             name=name,
             list_id=list_id,
             description=description,
@@ -575,7 +708,7 @@ if not SAFE_MODE:
         logger.debug(f"Deleting card with ID: {card_id}")
         
         try:
-            success = await trello_client.delete_card(card_id)
+            success = await (client := get_trello_client()).delete_card(card_id)
             
             if success:
                 result = f"✅ **Card Deleted Successfully!**\n\n"
@@ -604,7 +737,7 @@ async def create_checklist(name: str, card_id: str) -> List[TextContent]:
     logger.debug(f"Creating checklist '{name}' in card ID: {card_id}")
     
     try:
-        checklist_data = await trello_client.create_checklist(
+        checklist_data = await (client := get_trello_client()).create_checklist(
             name=name,
             card_id=card_id
         )
@@ -635,7 +768,7 @@ if not SAFE_MODE:
         logger.debug(f"Deleting checklist with ID: {checklist_id}")
         
         try:
-            success = await trello_client.delete_checklist(checklist_id)
+            success = await (client := get_trello_client()).delete_checklist(checklist_id)
             
             if success:
                 result = f"✅ **Checklist Deleted Successfully!**\n\n"
@@ -665,7 +798,7 @@ async def add_checklist_item(name: str, checklist_id: str, checked: bool = False
     logger.debug(f"Adding checklist item '{name}' to checklist ID: {checklist_id}, checked: {checked}")
     
     try:
-        item_data = await trello_client.add_checklist_item(
+        item_data = await (client := get_trello_client()).add_checklist_item(
             name=name,
             checklist_id=checklist_id,
             checked=checked
@@ -699,7 +832,7 @@ if not SAFE_MODE:
         logger.debug(f"Deleting checklist item {check_item_id} from checklist {checklist_id}")
         
         try:
-            success = await trello_client.delete_checklist_item(checklist_id, check_item_id)
+            success = await (client := get_trello_client()).delete_checklist_item(checklist_id, check_item_id)
             
             if success:
                 result = f"✅ **Checklist Item Deleted Successfully!**\n\n"
@@ -749,7 +882,7 @@ async def update_card(card_id: str, name: str = None, description: str = None, d
         return [TextContent(type="text", text="❌ **No Updates Provided!**\n\nPlease provide at least one field to update (name, description, due_date, or list_id).")]
     
     try:
-        card_data = await trello_client.update_card(
+        card_data = await (client := get_trello_client()).update_card(
             card_id=card_id,
             name=name,
             description=description,
