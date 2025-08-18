@@ -76,7 +76,7 @@ pip install mbeauv-mcp-trello
    TRELLO_API_KEY=your_trello_api_key
    TRELLO_TOKEN=your_trello_token
    LOG_LEVEL=INFO
-   SAFE_MODE=true
+   TRELLO_MCP_SAFE_MODE=true
    ```
 
 ## Safe Mode
@@ -99,10 +99,10 @@ The extension includes a **Safe Mode** feature to prevent accidental destructive
 - `delete_checklist_item` - Delete checklist items
 
 ### Configuration
-Set `SAFE_MODE=false` in your environment variables to enable destructive operations:
+Set `TRELLO_MCP_SAFE_MODE=false` in your environment variables to enable destructive operations:
 
 ```env
-SAFE_MODE=false
+TRELLO_MCP_SAFE_MODE=false
 ```
 
 **⚠️ Warning**: Only disable safe mode when you're confident about destructive operations. Deletions are permanent and cannot be undone.
@@ -137,7 +137,7 @@ Create or update your Claude Desktop configuration file (`~/Library/Application 
         "TRELLO_API_KEY": "your_api_key",
         "TRELLO_TOKEN": "your_token",
         "LOG_LEVEL": "INFO",
-        "SAFE_MODE": "true"
+        "TRELLO_MCP_SAFE_MODE": "true"
       }
     }
   }
@@ -156,7 +156,7 @@ Create or update your Claude Desktop configuration file (`~/Library/Application 
         "TRELLO_API_KEY": "your_api_key",
         "TRELLO_TOKEN": "your_token",
         "LOG_LEVEL": "INFO",
-        "SAFE_MODE": "true"
+        "TRELLO_MCP_SAFE_MODE": "true"
       }
     }
   }
@@ -175,7 +175,7 @@ Create or update your Claude Desktop configuration file (`~/Library/Application 
         "TRELLO_API_KEY": "your_api_key",
         "TRELLO_TOKEN": "your_token",
         "LOG_LEVEL": "INFO",
-        "SAFE_MODE": "true"
+        "TRELLO_MCP_SAFE_MODE": "true"
       }
     }
   }
@@ -197,7 +197,7 @@ Create a `server_config.json` file in the project root:
         "TRELLO_API_KEY": "your_api_key",
         "TRELLO_TOKEN": "your_token",
         "LOG_LEVEL": "INFO",
-        "SAFE_MODE": true
+        "TRELLO_MCP_SAFE_MODE": true
       }
     }
   }

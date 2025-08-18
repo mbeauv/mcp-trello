@@ -95,8 +95,8 @@ current_workspace_id = None
 current_workspace_name = None
 
 # Check if safe mode is enabled
-SAFE_MODE = os.getenv("SAFE_MODE", "true").lower() == "true"
-if SAFE_MODE:
+TRELLO_MCP_SAFE_MODE = os.getenv("TRELLO_MCP_SAFE_MODE", "true").lower() == "true"
+if TRELLO_MCP_SAFE_MODE:
     logger.info("SAFE MODE ENABLED - Destructive tools will not be available")
 else:
     logger.info("SAFE MODE DISABLED - All tools including destructive ones are available")
@@ -176,7 +176,7 @@ async def health_check() -> List[TextContent]:
     
     result = "🔧 **MCP Trello Server Status**\n\n"
     result += "✅ **Server**: Running\n"
-    result += f"✅ **Safe Mode**: {SAFE_MODE}\n"
+    result += f"✅ **Safe Mode**: {TRELLO_MCP_SAFE_MODE}\n"
     result += f"✅ **Log Level**: {os.getenv('LOG_LEVEL', 'INFO')}\n"
     
     # Check credentials from both config file and env vars
@@ -278,7 +278,7 @@ async def create_workspace(name: str, display_name: str = None, description: str
 
 
 # Only register delete_workspace if safe mode is disabled
-if not SAFE_MODE:
+if not TRELLO_MCP_SAFE_MODE:
     @mcp.tool()
     async def delete_workspace(workspace_id: str) -> List[TextContent]:
         """Delete a Trello workspace.
@@ -465,7 +465,7 @@ async def create_board(name: str, description: str = None) -> List[TextContent]:
 
 
 # Only register delete_board if safe mode is disabled
-if not SAFE_MODE:
+if not TRELLO_MCP_SAFE_MODE:
     @mcp.tool()
     async def delete_board(board_id: str) -> List[TextContent]:
         """Delete a Trello board.
@@ -531,7 +531,7 @@ async def list_board_lists(board_id: str) -> List[TextContent]:
 
 
 # Only register delete_board_list if safe mode is disabled
-if not SAFE_MODE:
+if not TRELLO_MCP_SAFE_MODE:
     @mcp.tool()
     async def delete_board_list(list_id: str) -> List[TextContent]:
         """Delete a list (column) from a board.
@@ -696,7 +696,7 @@ async def create_card(name: str, list_id: str, description: str = None, due_date
 
 
 # Only register delete_card if safe mode is disabled
-if not SAFE_MODE:
+if not TRELLO_MCP_SAFE_MODE:
     @mcp.tool()
     async def delete_card(card_id: str) -> List[TextContent]:
         """Delete a card.
@@ -756,7 +756,7 @@ async def create_checklist(name: str, card_id: str) -> List[TextContent]:
 
 
 # Only register delete_checklist if safe mode is disabled
-if not SAFE_MODE:
+if not TRELLO_MCP_SAFE_MODE:
     @mcp.tool()
     async def delete_checklist(checklist_id: str) -> List[TextContent]:
         """Delete a checklist from a card.
@@ -819,7 +819,7 @@ async def add_checklist_item(name: str, checklist_id: str, checked: bool = False
 
 
 # Only register delete_checklist_item if safe mode is disabled
-if not SAFE_MODE:
+if not TRELLO_MCP_SAFE_MODE:
     @mcp.tool()
     async def delete_checklist_item(checklist_id: str, check_item_id: str) -> List[TextContent]:
         """Delete an item from a checklist.
