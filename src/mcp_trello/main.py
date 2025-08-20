@@ -94,12 +94,31 @@ mcp = FastMCP("trello")
 current_workspace_id = None
 current_workspace_name = None
 
-# Check if safe mode is enabled
-TRELLO_MCP_SAFE_MODE = os.getenv("TRELLO_MCP_SAFE_MODE", "true").lower() == "true"
-if TRELLO_MCP_SAFE_MODE:
-    logger.info("SAFE MODE ENABLED - Destructive tools will not be available")
+def is_safe_mode_enabled() -> bool:
+    """Check if safe mode is enabled from config file or environment variables."""
+    config_file = get_config_file_path()
+    
+    # Try to load from config file first
+    if config_file.exists():
+        try:
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+                safe_mode = config.get('safe_mode')
+                if safe_mode is not None:
+                    return safe_mode
+        except Exception as e:
+            logger.warning(f"Failed to load safe mode from config file: {e}")
+    
+    # Fallback to environment variable
+    return os.getenv("TRELLO_MCP_SAFE_MODE", "true").lower() == "true"
+
+# Safe mode is now configured dynamically via the is_safe_mode_enabled() function
+# Check initial safe mode status
+safe_mode = is_safe_mode_enabled()
+if safe_mode:
+    logger.info("SAFE MODE ENABLED - Destructive operations will be blocked at runtime")
 else:
-    logger.info("SAFE MODE DISABLED - All tools including destructive ones are available")
+    logger.info("SAFE MODE DISABLED - Destructive operations are available")
 
 def get_current_workspace_info():
     """Get current workspace info or return None if not set."""
@@ -170,13 +189,68 @@ async def configure_trello(api_key: str, token: str) -> List[TextContent]:
 
 
 @mcp.tool()
+async def configure_safe_mode(enabled: bool) -> List[TextContent]:
+    """Configure safe mode for destructive operations.
+    
+    Args:
+        enabled: True to enable safe mode (disable destructive operations), False to disable safe mode
+    """
+    logger.info(f"Tool called: configure_safe_mode (enabled={enabled})")
+    
+    try:
+        config_file = get_config_file_path()
+        
+        # Load existing config or create new one
+        config = {}
+        if config_file.exists():
+            try:
+                with open(config_file, 'r') as f:
+                    config = json.load(f)
+            except Exception as e:
+                logger.warning(f"Failed to load existing config: {e}")
+        
+        # Update safe mode setting
+        config['safe_mode'] = enabled
+        
+        # Ensure the directory exists
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Save updated config
+        with open(config_file, 'w') as f:
+            json.dump(config, f, indent=2)
+        
+        logger.info(f"Safe mode configured: {enabled}")
+        
+        mode_status = "🔒 **ENABLED**" if enabled else "🔓 **DISABLED**"
+        result = f"✅ **Safe Mode Configuration Updated!**\n\n"
+        result += f"🛡️ **Safe Mode**: {mode_status}\n"
+        result += f"📁 **Config File**: {config_file}\n\n"
+        
+        if enabled:
+            result += "🚫 **Destructive Operations**: Disabled\n"
+            result += "✅ **Available**: Read and create operations only\n"
+        else:
+            result += "⚠️ **Destructive Operations**: Enabled\n"
+            result += "🗑️ **Available**: All operations including delete\n"
+        
+        result += "\n**Effect**: Changes apply immediately to all tools!"
+        
+        return [TextContent(type="text", text=result)]
+        
+    except Exception as e:
+        logger.error(f"Error configuring safe mode: {e}")
+        return [TextContent(type="text", text=f"❌ **Configuration Failed**\n\nError: {str(e)}")]
+
+
+@mcp.tool()
 async def health_check() -> List[TextContent]:
     """Check if the MCP Trello server is running and configured properly."""
     logger.info("Tool called: health_check")
     
     result = "🔧 **MCP Trello Server Status**\n\n"
     result += "✅ **Server**: Running\n"
-    result += f"✅ **Safe Mode**: {TRELLO_MCP_SAFE_MODE}\n"
+    safe_mode = is_safe_mode_enabled()
+    result += f"✅ **Safe Mode**: {safe_mode}\n"
     result += f"✅ **Log Level**: {os.getenv('LOG_LEVEL', 'INFO')}\n"
     
     # Check credentials from both config file and env vars
@@ -277,36 +351,39 @@ async def create_workspace(name: str, display_name: str = None, description: str
         return [TextContent(type="text", text=f"Error creating workspace: {str(e)}")]
 
 
-# Only register delete_workspace if safe mode is disabled
-if not TRELLO_MCP_SAFE_MODE:
-    @mcp.tool()
-    async def delete_workspace(workspace_id: str) -> List[TextContent]:
-        """Delete a Trello workspace.
+@mcp.tool()
+async def delete_workspace(workspace_id: str) -> List[TextContent]:
+    """Delete a Trello workspace.
+    
+    Args:
+        workspace_id: The ID of the workspace to delete (required)
+    """
+    logger.info("Tool called: delete_workspace")
+    
+    # Check safe mode at runtime
+    if is_safe_mode_enabled():
+        return [TextContent(type="text", text="🔒 **Safe Mode Enabled**\n\nDestructive operations are disabled. Use `configure_safe_mode false` to enable delete operations.")]
+    
+    logger.debug(f"Deleting workspace with ID: {workspace_id}")
+    
+    try:
+        logger.debug("Calling Trello API to delete workspace...")
+        success = await (client := get_trello_client()).delete_workspace(workspace_id)
         
-        Args:
-            workspace_id: The ID of the workspace to delete (required)
-        """
-        logger.info("Tool called: delete_workspace")
-        logger.debug(f"Deleting workspace with ID: {workspace_id}")
+        if success:
+            logger.info(f"Successfully deleted workspace: {workspace_id}")
+            result = f"✅ **Workspace Deleted Successfully!**\n\n"
+            result += f"**Workspace ID:** `{workspace_id}`\n"
+            result += f"The workspace has been permanently deleted."
+            
+            return [TextContent(type="text", text=result)]
+        else:
+            logger.warning(f"Failed to delete workspace: {workspace_id}")
+            return [TextContent(type="text", text="Failed to delete workspace.")]
         
-        try:
-            logger.debug("Calling Trello API to delete workspace...")
-            success = await (client := get_trello_client()).delete_workspace(workspace_id)
-            
-            if success:
-                logger.info(f"Successfully deleted workspace: {workspace_id}")
-                result = f"✅ **Workspace Deleted Successfully!**\n\n"
-                result += f"**Workspace ID:** `{workspace_id}`\n"
-                result += f"The workspace has been permanently deleted."
-                
-                return [TextContent(type="text", text=result)]
-            else:
-                logger.warning(f"Failed to delete workspace: {workspace_id}")
-                return [TextContent(type="text", text="Failed to delete workspace.")]
-            
-        except Exception as e:
-            logger.error(f"Error in delete_workspace tool: {e}", exc_info=True)
-            return [TextContent(type="text", text=f"Error deleting workspace: {str(e)}")]
+    except Exception as e:
+        logger.error(f"Error in delete_workspace tool: {e}", exc_info=True)
+        return [TextContent(type="text", text=f"Error deleting workspace: {str(e)}")]
 
 
 @mcp.tool()
@@ -464,34 +541,38 @@ async def create_board(name: str, description: str = None) -> List[TextContent]:
         return [TextContent(type="text", text=f"Error creating board: {str(e)}")]
 
 
-# Only register delete_board if safe mode is disabled
-if not TRELLO_MCP_SAFE_MODE:
-    @mcp.tool()
-    async def delete_board(board_id: str) -> List[TextContent]:
-        """Delete a Trello board.
+
+@mcp.tool()
+async def delete_board(board_id: str) -> List[TextContent]:
+    """Delete a Trello board.
+    
+    Args:
+        board_id: The ID of the board to delete (required)
+    """
+    logger.info("Tool called: delete_board")
+    
+    # Check safe mode at runtime
+    if is_safe_mode_enabled():
+        return [TextContent(type="text", text="🔒 **Safe Mode Enabled**\n\nDestructive operations are disabled. Use `configure_safe_mode false` to enable delete operations.")]
+    
+    logger.debug(f"Deleting board with ID: {board_id}")
+    
+    try:
+        success = await (client := get_trello_client()).delete_board(board_id)
         
-        Args:
-            board_id: The ID of the board to delete (required)
-        """
-        logger.info("Tool called: delete_board")
-        logger.debug(f"Deleting board with ID: {board_id}")
+        if success:
+            result = f"✅ **Board Deleted Successfully!**\n\n"
+            result += f"**Board ID:** `{board_id}`\n"
+            result += f"The board has been permanently deleted."
+            
+            return [TextContent(type="text", text=result)]
+        else:
+            logger.warning(f"Failed to delete board: {board_id}")
+            return [TextContent(type="text", text="Failed to delete board.")]
         
-        try:
-            success = await (client := get_trello_client()).delete_board(board_id)
-            
-            if success:
-                result = f"✅ **Board Deleted Successfully!**\n\n"
-                result += f"**Board ID:** `{board_id}`\n"
-                result += f"The board has been permanently deleted."
-                
-                return [TextContent(type="text", text=result)]
-            else:
-                logger.warning(f"Failed to delete board: {board_id}")
-                return [TextContent(type="text", text="Failed to delete board.")]
-            
-        except Exception as e:
-            logger.error(f"Error in delete_board tool: {e}", exc_info=True)
-            return [TextContent(type="text", text=f"Error deleting board: {str(e)}")]
+    except Exception as e:
+        logger.error(f"Error in delete_board tool: {e}", exc_info=True)
+        return [TextContent(type="text", text=f"Error deleting board: {str(e)}")]
 
 
 @mcp.tool()
@@ -530,34 +611,38 @@ async def list_board_lists(board_id: str) -> List[TextContent]:
         return [TextContent(type="text", text=f"Error fetching board lists: {str(e)}")]
 
 
-# Only register delete_board_list if safe mode is disabled
-if not TRELLO_MCP_SAFE_MODE:
-    @mcp.tool()
-    async def delete_board_list(list_id: str) -> List[TextContent]:
-        """Delete a list (column) from a board.
+
+@mcp.tool()
+async def delete_board_list(list_id: str) -> List[TextContent]:
+    """Delete a list (column) from a board.
+    
+    Args:
+        list_id: The ID of the list to delete (required)
+    """
+    logger.info("Tool called: delete_board_list")
+    
+    # Check safe mode at runtime
+    if is_safe_mode_enabled():
+        return [TextContent(type="text", text="🔒 **Safe Mode Enabled**\n\nDestructive operations are disabled. Use `configure_safe_mode false` to enable delete operations.")]
+    
+    logger.debug(f"Deleting list with ID: {list_id}")
+    
+    try:
+        success = await (client := get_trello_client()).delete_board_list(list_id)
         
-        Args:
-            list_id: The ID of the list to delete (required)
-        """
-        logger.info("Tool called: delete_board_list")
-        logger.debug(f"Deleting list with ID: {list_id}")
+        if success:
+            result = f"✅ **List Deleted Successfully!**\n\n"
+            result += f"**List ID:** `{list_id}`\n"
+            result += f"The list has been archived/deleted."
+            
+            return [TextContent(type="text", text=result)]
+        else:
+            logger.warning(f"Failed to delete list: {list_id}")
+            return [TextContent(type="text", text="Failed to delete list.")]
         
-        try:
-            success = await (client := get_trello_client()).delete_board_list(list_id)
-            
-            if success:
-                result = f"✅ **List Deleted Successfully!**\n\n"
-                result += f"**List ID:** `{list_id}`\n"
-                result += f"The list has been archived/deleted."
-                
-                return [TextContent(type="text", text=result)]
-            else:
-                logger.warning(f"Failed to delete list: {list_id}")
-                return [TextContent(type="text", text="Failed to delete list.")]
-            
-        except Exception as e:
-            logger.error(f"Error in delete_board_list tool: {e}", exc_info=True)
-            return [TextContent(type="text", text=f"Error deleting list: {str(e)}")]
+    except Exception as e:
+        logger.error(f"Error in delete_board_list tool: {e}", exc_info=True)
+        return [TextContent(type="text", text=f"Error deleting list: {str(e)}")]
 
 
 @mcp.tool()
@@ -695,34 +780,37 @@ async def create_card(name: str, list_id: str, description: str = None, due_date
         return [TextContent(type="text", text=f"Error creating card: {str(e)}")]
 
 
-# Only register delete_card if safe mode is disabled
-if not TRELLO_MCP_SAFE_MODE:
-    @mcp.tool()
-    async def delete_card(card_id: str) -> List[TextContent]:
-        """Delete a card.
+@mcp.tool()
+async def delete_card(card_id: str) -> List[TextContent]:
+    """Delete a card.
+    
+    Args:
+        card_id: The ID of the card to delete (required)
+    """
+    logger.info("Tool called: delete_card")
+    
+    # Check safe mode at runtime
+    if is_safe_mode_enabled():
+        return [TextContent(type="text", text="🔒 **Safe Mode Enabled**\n\nDestructive operations are disabled. Use `configure_safe_mode false` to enable delete operations.")]
+    
+    logger.debug(f"Deleting card with ID: {card_id}")
+    
+    try:
+        success = await (client := get_trello_client()).delete_card(card_id)
         
-        Args:
-            card_id: The ID of the card to delete (required)
-        """
-        logger.info("Tool called: delete_card")
-        logger.debug(f"Deleting card with ID: {card_id}")
+        if success:
+            result = f"✅ **Card Deleted Successfully!**\n\n"
+            result += f"**Card ID:** `{card_id}`\n"
+            result += f"The card has been permanently deleted."
+            
+            return [TextContent(type="text", text=result)]
+        else:
+            logger.warning(f"Failed to delete card: {card_id}")
+            return [TextContent(type="text", text="Failed to delete card.")]
         
-        try:
-            success = await (client := get_trello_client()).delete_card(card_id)
-            
-            if success:
-                result = f"✅ **Card Deleted Successfully!**\n\n"
-                result += f"**Card ID:** `{card_id}`\n"
-                result += f"The card has been permanently deleted."
-                
-                return [TextContent(type="text", text=result)]
-            else:
-                logger.warning(f"Failed to delete card: {card_id}")
-                return [TextContent(type="text", text="Failed to delete card.")]
-            
-        except Exception as e:
-            logger.error(f"Error in delete_card tool: {e}", exc_info=True)
-            return [TextContent(type="text", text=f"Error deleting card: {str(e)}")]
+    except Exception as e:
+        logger.error(f"Error in delete_card tool: {e}", exc_info=True)
+        return [TextContent(type="text", text=f"Error deleting card: {str(e)}")]
 
 
 @mcp.tool()
@@ -755,34 +843,37 @@ async def create_checklist(name: str, card_id: str) -> List[TextContent]:
         return [TextContent(type="text", text=f"Error creating checklist: {str(e)}")]
 
 
-# Only register delete_checklist if safe mode is disabled
-if not TRELLO_MCP_SAFE_MODE:
-    @mcp.tool()
-    async def delete_checklist(checklist_id: str) -> List[TextContent]:
-        """Delete a checklist from a card.
+@mcp.tool()
+async def delete_checklist(checklist_id: str) -> List[TextContent]:
+    """Delete a checklist from a card.
+    
+    Args:
+        checklist_id: The ID of the checklist to delete (required)
+    """
+    logger.info("Tool called: delete_checklist")
+    
+    # Check safe mode at runtime
+    if is_safe_mode_enabled():
+        return [TextContent(type="text", text="🔒 **Safe Mode Enabled**\n\nDestructive operations are disabled. Use `configure_safe_mode false` to enable delete operations.")]
+    
+    logger.debug(f"Deleting checklist with ID: {checklist_id}")
+    
+    try:
+        success = await (client := get_trello_client()).delete_checklist(checklist_id)
         
-        Args:
-            checklist_id: The ID of the checklist to delete (required)
-        """
-        logger.info("Tool called: delete_checklist")
-        logger.debug(f"Deleting checklist with ID: {checklist_id}")
+        if success:
+            result = f"✅ **Checklist Deleted Successfully!**\n\n"
+            result += f"**Checklist ID:** `{checklist_id}`\n"
+            result += f"The checklist has been permanently deleted."
+            
+            return [TextContent(type="text", text=result)]
+        else:
+            logger.warning(f"Failed to delete checklist: {checklist_id}")
+            return [TextContent(type="text", text="Failed to delete checklist.")]
         
-        try:
-            success = await (client := get_trello_client()).delete_checklist(checklist_id)
-            
-            if success:
-                result = f"✅ **Checklist Deleted Successfully!**\n\n"
-                result += f"**Checklist ID:** `{checklist_id}`\n"
-                result += f"The checklist has been permanently deleted."
-                
-                return [TextContent(type="text", text=result)]
-            else:
-                logger.warning(f"Failed to delete checklist: {checklist_id}")
-                return [TextContent(type="text", text="Failed to delete checklist.")]
-            
-        except Exception as e:
-            logger.error(f"Error in delete_checklist tool: {e}", exc_info=True)
-            return [TextContent(type="text", text=f"Error deleting checklist: {str(e)}")]
+    except Exception as e:
+        logger.error(f"Error in delete_checklist tool: {e}", exc_info=True)
+        return [TextContent(type="text", text=f"Error deleting checklist: {str(e)}")]
 
 
 @mcp.tool()
@@ -818,36 +909,39 @@ async def add_checklist_item(name: str, checklist_id: str, checked: bool = False
         return [TextContent(type="text", text=f"Error adding checklist item: {str(e)}")]
 
 
-# Only register delete_checklist_item if safe mode is disabled
-if not TRELLO_MCP_SAFE_MODE:
-    @mcp.tool()
-    async def delete_checklist_item(checklist_id: str, check_item_id: str) -> List[TextContent]:
-        """Delete an item from a checklist.
+@mcp.tool()
+async def delete_checklist_item(checklist_id: str, check_item_id: str) -> List[TextContent]:
+    """Delete an item from a checklist.
+    
+    Args:
+        checklist_id: The ID of the checklist (required)
+        check_item_id: The ID of the checklist item to delete (required)
+    """
+    logger.info("Tool called: delete_checklist_item")
+    
+    # Check safe mode at runtime
+    if is_safe_mode_enabled():
+        return [TextContent(type="text", text="🔒 **Safe Mode Enabled**\n\nDestructive operations are disabled. Use `configure_safe_mode false` to enable delete operations.")]
+    
+    logger.debug(f"Deleting checklist item {check_item_id} from checklist {checklist_id}")
+    
+    try:
+        success = await (client := get_trello_client()).delete_checklist_item(checklist_id, check_item_id)
         
-        Args:
-            checklist_id: The ID of the checklist (required)
-            check_item_id: The ID of the checklist item to delete (required)
-        """
-        logger.info("Tool called: delete_checklist_item")
-        logger.debug(f"Deleting checklist item {check_item_id} from checklist {checklist_id}")
+        if success:
+            result = f"✅ **Checklist Item Deleted Successfully!**\n\n"
+            result += f"**Checklist ID:** `{checklist_id}`\n"
+            result += f"**Item ID:** `{check_item_id}`\n"
+            result += f"The checklist item has been permanently deleted."
+            
+            return [TextContent(type="text", text=result)]
+        else:
+            logger.warning(f"Failed to delete checklist item: {check_item_id}")
+            return [TextContent(type="text", text="Failed to delete checklist item.")]
         
-        try:
-            success = await (client := get_trello_client()).delete_checklist_item(checklist_id, check_item_id)
-            
-            if success:
-                result = f"✅ **Checklist Item Deleted Successfully!**\n\n"
-                result += f"**Checklist ID:** `{checklist_id}`\n"
-                result += f"**Item ID:** `{check_item_id}`\n"
-                result += f"The checklist item has been permanently deleted."
-                
-                return [TextContent(type="text", text=result)]
-            else:
-                logger.warning(f"Failed to delete checklist item: {check_item_id}")
-                return [TextContent(type="text", text="Failed to delete checklist item.")]
-            
-        except Exception as e:
-            logger.error(f"Error in delete_checklist_item tool: {e}", exc_info=True)
-            return [TextContent(type="text", text=f"Error deleting checklist item: {str(e)}")]
+    except Exception as e:
+        logger.error(f"Error in delete_checklist_item tool: {e}", exc_info=True)
+        return [TextContent(type="text", text=f"Error deleting checklist item: {str(e)}")]
 
 
 @mcp.tool()
