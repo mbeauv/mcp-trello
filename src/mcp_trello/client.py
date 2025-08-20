@@ -412,4 +412,119 @@ class TrelloClient:
             data=data,
             error_message="Error updating card"
         )
+
+    async def get_board_labels(self, board_id: str) -> List[dict]:
+        """Get all labels for a specific board.
+        
+        Args:
+            board_id: The ID of the board
+            
+        Returns:
+            List of label dictionaries
+        """
+        return await self._make_request(
+            method="GET",
+            endpoint=f"/boards/{board_id}/labels",
+            params={"fields": "id,name,color,uses"},
+            error_message="Error fetching board labels"
+        )
+
+    async def create_label(self, name: str, color: str, board_id: str) -> dict:
+        """Create a new label on a specific board.
+        
+        Args:
+            name: The name of the label
+            color: The color of the label (red, blue, orange, green, yellow, purple, pink, lime, sky, grey)
+            board_id: The ID of the board to create the label on
+            
+        Returns:
+            Dictionary containing the created label data
+        """
+        data = {
+            "name": name,
+            "color": color,
+            "idBoard": board_id
+        }
+        
+        return await self._make_request(
+            method="POST",
+            endpoint="/labels",
+            data=data,
+            error_message="Error creating label"
+        )
+
+    async def update_label(self, label_id: str, name: str = None, color: str = None) -> dict:
+        """Update an existing label.
+        
+        Args:
+            label_id: The ID of the label to update
+            name: The new name of the label (optional)
+            color: The new color of the label (optional)
+            
+        Returns:
+            Dictionary containing the updated label data
+        """
+        data = {}
+        
+        if name is not None:
+            data["name"] = name
+        if color is not None:
+            data["color"] = color
+        
+        return await self._make_request(
+            method="PUT",
+            endpoint=f"/labels/{label_id}",
+            data=data,
+            error_message="Error updating label"
+        )
+
+    async def delete_label(self, label_id: str) -> bool:
+        """Delete a label.
+        
+        Args:
+            label_id: The ID of the label to delete
+            
+        Returns:
+            True if deletion was successful
+        """
+        return await self._make_request(
+            method="DELETE",
+            endpoint=f"/labels/{label_id}",
+            error_message="Error deleting label"
+        )
+
+    async def add_label_to_card(self, card_id: str, label_id: str) -> dict:
+        """Add a label to a card.
+        
+        Args:
+            card_id: The ID of the card
+            label_id: The ID of the label to add
+            
+        Returns:
+            Dictionary containing the response from the API
+        """
+        data = {"value": label_id}
+        
+        return await self._make_request(
+            method="POST",
+            endpoint=f"/cards/{card_id}/idLabels",
+            data=data,
+            error_message="Error adding label to card"
+        )
+
+    async def remove_label_from_card(self, card_id: str, label_id: str) -> bool:
+        """Remove a label from a card.
+        
+        Args:
+            card_id: The ID of the card
+            label_id: The ID of the label to remove
+            
+        Returns:
+            True if removal was successful
+        """
+        return await self._make_request(
+            method="DELETE",
+            endpoint=f"/cards/{card_id}/idLabels/{label_id}",
+            error_message="Error removing label from card"
+        )
                 

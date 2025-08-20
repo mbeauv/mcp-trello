@@ -1005,6 +1005,243 @@ async def update_card(card_id: str, name: str = None, description: str = None, d
         return [TextContent(type="text", text=f"Error updating card: {str(e)}")]
 
 
+@mcp.tool()
+async def list_board_labels(board_id: str) -> List[TextContent]:
+    """List all labels for a specific board.
+    
+    Args:
+        board_id: The ID of the board to list labels for (required)
+    """
+    logger.info("Tool called: list_board_labels")
+    logger.debug(f"Listing labels for board ID: {board_id}")
+    
+    try:
+        labels_data = await (client := get_trello_client()).get_board_labels(board_id)
+        
+        if not labels_data:
+            result = f"🏷️ **No Labels Found**\n\n"
+            result += f"Board ID: `{board_id}`\n\n"
+            result += f"This board has no labels yet."
+            
+            return [TextContent(type="text", text=result)]
+
+        result = f"🏷️ **Labels in Board:**\n\n"
+        for i, label in enumerate(labels_data, 1):
+            color_emoji = {
+                "red": "🔴", "blue": "🔵", "orange": "🟠", "green": "🟢", 
+                "yellow": "🟡", "purple": "🟣", "pink": "🩷", "lime": "🟢", 
+                "sky": "🔵", "grey": "⚪", "gray": "⚪"
+            }.get(label.get('color', ''), "⚫")
+            
+            label_name = label.get('name', 'Unnamed Label')
+            result += f"{i}. {color_emoji} **{label_name}**\n"
+            result += f"   ID: `{label.get('id')}`\n"
+            result += f"   Color: {label.get('color', 'none')}\n"
+            result += f"   Uses: {label.get('uses', 0)} card(s)\n"
+            result += "\n"
+        
+        return [TextContent(type="text", text=result)]
+        
+    except Exception as e:
+        logger.error(f"Error in list_board_labels tool: {e}", exc_info=True)
+        return [TextContent(type="text", text=f"Error fetching board labels: {str(e)}")]
+
+
+@mcp.tool()
+async def create_label(name: str, color: str, board_id: str) -> List[TextContent]:
+    """Create a new label on a specific board.
+    
+    Args:
+        name: The name of the label (required)
+        color: The color of the label - red, blue, orange, green, yellow, purple, pink, lime, sky, grey (required)
+        board_id: The ID of the board to create the label on (required)
+    """
+    logger.info("Tool called: create_label")
+    logger.debug(f"Creating label '{name}' with color '{color}' on board ID: {board_id}")
+    
+    # Validate color
+    valid_colors = ["red", "blue", "orange", "green", "yellow", "purple", "pink", "lime", "sky", "grey", "gray"]
+    if color.lower() not in valid_colors:
+        return [TextContent(type="text", text=f"❌ **Invalid Color!**\n\nColor must be one of: {', '.join(valid_colors)}")]
+    
+    try:
+        label_data = await (client := get_trello_client()).create_label(
+            name=name,
+            color=color.lower(),
+            board_id=board_id
+        )
+        
+        color_emoji = {
+            "red": "🔴", "blue": "🔵", "orange": "🟠", "green": "🟢", 
+            "yellow": "🟡", "purple": "🟣", "pink": "🩷", "lime": "🟢", 
+            "sky": "🔵", "grey": "⚪", "gray": "⚪"
+        }.get(color.lower(), "⚫")
+        
+        result = f"✅ **Label Created Successfully!**\n\n"
+        result += f"**Name:** {color_emoji} {label_data.get('name')}\n"
+        result += f"**ID:** `{label_data.get('id')}`\n"
+        result += f"**Color:** {label_data.get('color')}\n"
+        result += f"**Board ID:** `{label_data.get('idBoard')}`\n"
+        
+        return [TextContent(type="text", text=result)]
+        
+    except Exception as e:
+        logger.error(f"Error in create_label tool: {e}", exc_info=True)
+        return [TextContent(type="text", text=f"Error creating label: {str(e)}")]
+
+
+@mcp.tool()
+async def update_label(label_id: str, name: str = None, color: str = None) -> List[TextContent]:
+    """Update an existing label.
+    
+    Args:
+        label_id: The ID of the label to update (required)
+        name: The new name of the label (optional)
+        color: The new color of the label - red, blue, orange, green, yellow, purple, pink, lime, sky, grey (optional)
+    """
+    logger.info("Tool called: update_label")
+    logger.debug(f"Updating label ID: {label_id}")
+    
+    # Build update info for logging
+    updates = []
+    if name is not None:
+        updates.append(f"name: {name}")
+    if color is not None:
+        updates.append(f"color: {color}")
+    
+    if updates:
+        logger.debug(f"Updates: {', '.join(updates)}")
+    else:
+        logger.warning("No updates provided for label")
+        return [TextContent(type="text", text="❌ **No Updates Provided!**\n\nPlease provide at least one field to update (name or color).")]
+    
+    # Validate color if provided
+    if color is not None:
+        valid_colors = ["red", "blue", "orange", "green", "yellow", "purple", "pink", "lime", "sky", "grey", "gray"]
+        if color.lower() not in valid_colors:
+            return [TextContent(type="text", text=f"❌ **Invalid Color!**\n\nColor must be one of: {', '.join(valid_colors)}")]
+        color = color.lower()
+    
+    try:
+        label_data = await (client := get_trello_client()).update_label(
+            label_id=label_id,
+            name=name,
+            color=color
+        )
+        
+        color_emoji = {
+            "red": "🔴", "blue": "🔵", "orange": "🟠", "green": "🟢", 
+            "yellow": "🟡", "purple": "🟣", "pink": "🩷", "lime": "🟢", 
+            "sky": "🔵", "grey": "⚪", "gray": "⚪"
+        }.get(label_data.get('color', ''), "⚫")
+        
+        result = f"✅ **Label Updated Successfully!**\n\n"
+        result += f"**Label ID:** `{label_id}`\n"
+        result += f"**Name:** {color_emoji} {label_data.get('name', 'Unchanged')}\n"
+        result += f"**Color:** {label_data.get('color', 'Unchanged')}\n"
+        
+        return [TextContent(type="text", text=result)]
+        
+    except Exception as e:
+        logger.error(f"Error in update_label tool: {e}", exc_info=True)
+        return [TextContent(type="text", text=f"Error updating label: {str(e)}")]
+
+
+@mcp.tool()
+async def delete_label(label_id: str) -> List[TextContent]:
+    """Delete a label.
+    
+    Args:
+        label_id: The ID of the label to delete (required)
+    """
+    logger.info("Tool called: delete_label")
+    
+    # Check safe mode at runtime
+    if is_safe_mode_enabled():
+        return [TextContent(type="text", text="🔒 **Safe Mode Enabled**\n\nDestructive operations are disabled. Use `configure_safe_mode false` to enable delete operations.")]
+    
+    logger.debug(f"Deleting label with ID: {label_id}")
+    
+    try:
+        success = await (client := get_trello_client()).delete_label(label_id)
+        
+        if success:
+            result = f"✅ **Label Deleted Successfully!**\n\n"
+            result += f"**Label ID:** `{label_id}`\n"
+            result += f"The label has been permanently deleted."
+            
+            return [TextContent(type="text", text=result)]
+        else:
+            logger.warning(f"Failed to delete label: {label_id}")
+            return [TextContent(type="text", text="Failed to delete label.")]
+        
+    except Exception as e:
+        logger.error(f"Error in delete_label tool: {e}", exc_info=True)
+        return [TextContent(type="text", text=f"Error deleting label: {str(e)}")]
+
+
+@mcp.tool()
+async def add_label_to_card(card_id: str, label_id: str) -> List[TextContent]:
+    """Add a label to a card.
+    
+    Args:
+        card_id: The ID of the card (required)
+        label_id: The ID of the label to add (required)
+    """
+    logger.info("Tool called: add_label_to_card")
+    logger.debug(f"Adding label {label_id} to card {card_id}")
+    
+    try:
+        response = await (client := get_trello_client()).add_label_to_card(
+            card_id=card_id,
+            label_id=label_id
+        )
+        
+        result = f"✅ **Label Added to Card Successfully!**\n\n"
+        result += f"**Card ID:** `{card_id}`\n"
+        result += f"**Label ID:** `{label_id}`\n"
+        result += f"The label has been added to the card."
+        
+        return [TextContent(type="text", text=result)]
+        
+    except Exception as e:
+        logger.error(f"Error in add_label_to_card tool: {e}", exc_info=True)
+        return [TextContent(type="text", text=f"Error adding label to card: {str(e)}")]
+
+
+@mcp.tool()
+async def remove_label_from_card(card_id: str, label_id: str) -> List[TextContent]:
+    """Remove a label from a card.
+    
+    Args:
+        card_id: The ID of the card (required)
+        label_id: The ID of the label to remove (required)
+    """
+    logger.info("Tool called: remove_label_from_card")
+    logger.debug(f"Removing label {label_id} from card {card_id}")
+    
+    try:
+        success = await (client := get_trello_client()).remove_label_from_card(
+            card_id=card_id,
+            label_id=label_id
+        )
+        
+        if success:
+            result = f"✅ **Label Removed from Card Successfully!**\n\n"
+            result += f"**Card ID:** `{card_id}`\n"
+            result += f"**Label ID:** `{label_id}`\n"
+            result += f"The label has been removed from the card."
+            
+            return [TextContent(type="text", text=result)]
+        else:
+            logger.warning(f"Failed to remove label {label_id} from card {card_id}")
+            return [TextContent(type="text", text="Failed to remove label from card.")]
+        
+    except Exception as e:
+        logger.error(f"Error in remove_label_from_card tool: {e}", exc_info=True)
+        return [TextContent(type="text", text=f"Error removing label from card: {str(e)}")]
+
+
 def main():
     """Main entry point for the MCP Trello server."""
     logger.info("Starting MCP Trello server...")

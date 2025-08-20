@@ -1,8 +1,8 @@
 {
   "dxt_version": "0.1",
   "name": "mbeauv-mcp-trello",
-  "version": "0.1.1",
-  "description": "MCP extension for Trello",
+  "version": "0.2.0",
+  "description": "MCP extension for Trello with comprehensive board, card, list, checklist, and label management",
   "author": {
     "name": "Martin Beauvais",
     "email": "mbeauv@gmail.com"
